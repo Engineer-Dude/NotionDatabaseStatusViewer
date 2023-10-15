@@ -1,8 +1,13 @@
+using Azure.Extensions.AspNetCore.Configuration.Secrets;
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
 using NotionDatabaseStatusViewer.Areas.Identity;
 using NotionDatabaseStatusViewer.Data;
+using NotionDatabaseStatusViewer.Services;
 
 namespace NotionDatabaseStatusViewer
 {
@@ -22,6 +27,24 @@ namespace NotionDatabaseStatusViewer
             builder.Services.AddRazorPages();
             builder.Services.AddServerSideBlazor();
             builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<IdentityUser>>();
+
+            builder.Services.AddTransient<IEmailSender, EmailSender>();
+            builder.Services.Configure<AuthMessageSenderOptions>(builder.Configuration);
+
+            SecretClientOptions options = new()
+            {
+                Retry =
+                {
+                    Delay = TimeSpan.FromSeconds(2),
+                    MaxDelay = TimeSpan.FromSeconds(16),
+                    MaxRetries = 5,
+                    Mode = Azure.Core.RetryMode.Exponential
+                }
+            };
+
+            var client = new SecretClient(new Uri("<Key Vault Uri"), new DefaultAzureCredential(), options);
+
+            builder.Configuration.AddAzureKeyVault(client, new AzureKeyVaultConfigurationOptions());
 
             var app = builder.Build();
 
