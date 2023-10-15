@@ -1,5 +1,6 @@
-# NotionDatabaseStatusViewer
-Notion Database Status Viewer using a Blazor Server App
+# Notion Database Status Viewer
+Notion Database Status Viewer using a Blazor Server App.  This README.md file shows how to create this from a Blazor Server app template in Visual Studio 2022.
+Notion has many types including text, data, single-select, multi-select, etc.  This application uses the Title type for the Project column and the RichTextType for the Status column.
 ## Features
 * Authentication
 * Notion API access
@@ -7,6 +8,12 @@ Notion Database Status Viewer using a Blazor Server App
 * You have a GitHub account
 * You have an Azure account
 * You have a Notion account
+## Resources created in Azure
+* App Service
+* App Service plan
+* Azure SQL database
+* Azure SQL server
+* Azure Key Vault
 ## Steps
 1.	Create a Visual Studio 2022 Blazor Server App project
     1.	NotionDatabaseStatusViewer
@@ -193,3 +200,284 @@ var client = new SecretClient(new Uri("<Key Vault Uri>"), new DefaultAzureCreden
 
 builder.Configuration.AddAzureKeyVault(client, new AzureKeyVaultConfigurationOptions());
 ```
+10.	Change the application to read the database using the API
+    1.	Add a folder called ‘NotionTypes’ to the Solution Explorer
+    2.	Add a class to the ‘NotionTypes’ called DataBaseQueryResponse.cs (this is one of the classes that is used for parsing the value returnd from the API call to Notion
+    ```
+    internal class DataBaseQueryResponse
+    {
+        public bool has_more { get; set; }
+        public string type { get; set; } = string.Empty;
+        public List<Page> results { get; set; } = new();
+    }
+
+    ```   
+    4.	Add a class to the ‘NotionTypes’ called TableRow.cs (this is the class that holds the names of the columns in the database).
+    ```
+        internal class TableRow
+        {
+            public string Project { get; set; } = string.Empty;
+            public string Status { get; set; } = string.Empty;
+     }
+    ```
+    4.	Continue to add classes for the NotionTypes
+    i.	Add class Page.cs
+    ```
+        internal class Page
+        {
+            public Properties properties { get; set; } = new();
+        }
+    ```
+    ii.	Add class Properties.cs
+    ```
+        internal class Properties
+        {
+            public TitleType Project { get; set; } = new();
+            public RichTextType Status { get; set; } = new();
+        }
+    ```
+    iii.	Add class TitleType.cs
+    ```
+        internal class TitleType
+        {
+            public List<TextType> title { get; set; } = new();
+        }
+    ```
+    iv.	Add class RichTextType.cs
+    ```
+        internal class RichTextType
+        {
+            public List<TextType> rich_text { get; set; } = new();
+        }
+    ```
+    v.	Add class TextType.cs
+    ```
+        internal class TextType
+        {
+            public Text text { get; set; } = new();
+        }
+    ```
+    vi.	Add class Text.cs
+    ```
+        internal class Text
+        {
+            public string content { get; set; } = string.Empty;
+    	}
+    ```
+    5.	Add the dependency injection for the HttpClient in Program.cs
+    ```
+    builder.Services.AddHttpClient();
+    ```
+    6.	Add the following to Index.razor
+    ```
+    @using NotionDatabaseViewer.NotionTypes;
+    @using System.Text
+    @using System.Text.Json
+    
+    @inject HttpClient httpClient 
+    @inject IConfiguration config 
+    
+    <h1>Status</h1>
+    
+    <AuthorizeView Roles="status-viewer">
+        <Authorized>
+            <table>
+                <tr>
+                    <th class="project-column">Project</th>
+                    <th class="status-column">Status</th>
+                </tr>
+                @foreach (TableRow row in results)
+                {
+                    <tr>
+                        <td class="project-column">@row.Project</td>
+                        <td class="status-column">@row.Status</td>
+                    </tr>
+                }
+            </table>
+        </Authorized>
+        <NotAuthorized>
+            <p>To see the status, you will need to be logged in and have authorization to view it.  If you need authorization, please request it by contacting 'contact email address' for authorization.</p>
+        </NotAuthorized>
+    </AuthorizeView>
+      
+    private string databaseId = "";
+    private string bearerToken = "";       
+    private string responseMessage = "";
+    private string notionContent = "";
+    private string reasonPhrase = "";
+    private List<TableRow> results = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+            databaseId = config["DatabaseId"] ?? "";
+            bearerToken = config["BearerToken"] ?? "";
+    
+            if (databaseId == string.Empty || bearerToken == string.Empty)
+            {
+                responseMessage = "Error getting configuration";
+                return;
+            }
+    
+            await GetDatabaseContent(databaseId);
+            ProcessNotionResult(notionContent);
+    }    
+    
+    private async Task GetDatabaseContent(string databaseId)
+    {
+           string requestUri = $"https://api.notion.com/v1/databases/{databaseId}/query";
+    
+           httpClient.DefaultRequestHeaders.Add(name: "Authorization", value: $"Bearer {bearerToken}");
+           httpClient.DefaultRequestHeaders.Add(name: "Notion-Version", value: "2022-06-28");
+    
+           // Note on using relations in the Notion API:
+           // database_id is the id of the related database; open the related database as a page and get the id from the Url.
+           // contains is the page of the item of interest in the related database; open the item in the related database as a page and get the id from the Url
+           // The related database needs to also have the Notion integration.
+    
+           string contentString = "";
+           HttpContent content = new StringContent(contentString, Encoding.UTF8, "application/json");
+    
+           HttpResponseMessage response = new HttpResponseMessage();
+    
+           try
+           {
+               response = await httpClient.PostAsync(requestUri, content);
+           }
+           catch (Exception ex)
+           {
+               responseMessage = $"Exception: {ex}";
+           }
+    
+           if (response.IsSuccessStatusCode)
+           {
+               responseMessage = "Success";
+               notionContent = await response.Content.ReadAsStringAsync();
+           }
+           else
+           {
+               responseMessage = $"Error: {response.Content}";
+               reasonPhrase = $"Error: {response.ReasonPhrase}";
+           }
+    }
+    
+    private void ProcessNotionResult(string result)
+    {
+           DataBaseQueryResponse response = new();
+           try
+           {
+               response = JsonSerializer.Deserialize<DataBaseQueryResponse>(result, JsonSerializerOptions.Default) ?? new();
+           }
+           catch (JsonException ex)
+           {
+               responseMessage = $"Error deserializing data. {ex.Message}";
+               return;
+           }
+    
+           if (response is null)
+           {
+               responseMessage = "Error deserializing data";
+               return;
+           }
+    
+           for (int row = 0; row < response.results.Count; row++)
+           {
+               string project = string.Empty;
+               string status = string.Empty;
+    
+               if (response.results[row].properties.Project.title.Count() > 0)
+               {
+                   project = response.results[row].properties.Project.title[0].text.content;
+               }
+    
+               if (response.results[row].properties.Status.rich_text.Count() > 0)
+               {
+                   status = response.results[row].properties.Status.rich_text[0].text.content;
+               }
+    
+               results.Add(new TableRow { Project = project, Status = status });
+           }
+    }
+    ```
+    7.	Add a role for viewing.  I’ll call it ‘status-viewer’.
+    8.	Add the role item to Program.cs
+    ```
+        builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
+            .AddRoles<IdentityRole>()
+            .AddEntityFrameworkStores<TeliriteStatusWebsiteContext>();
+    ```
+11.	Set up Notion
+    1.	Create an Integration with READ access.
+    2.	Settings  & Members  My Connections  Develop or manage integrations
+    3.	Click ‘+ New Integration’
+        1.	Basic Information
+            1.	Enter a name.
+        2.	Capabilities
+            1.	Read content
+        3.	Click ‘Submit’.
+        4.	Copy the Internal Integration Secret for later
+        5.	Add it to the Azure KeyVault.  It is called BearerToken.
+    4.	Create a new page
+    5.	Add a database to it by entering ‘/database inline
+    6.	Click the three dots (…)  for the page and then ‘Add connections’
+    7.	Click your integration and click ‘Confirm’.
+12.	Add some content to the database
+    1.	Add a title (starts as ‘Untitled’)
+    2.	The first column has a fixed type called ‘Title’.  Change the name to ‘Project’.
+    3.	Change the second column name to Status and make it type ‘Text’
+    4.	Fill out two rows with information
+    5.	Delete other rows
+13.	Clean up the application
+    a.	Register.cshtml
+        i.	Remove the div about Using another Service
+    b.	Login.cshtml
+        i.	Remove div about Using another Service
+    c.	Add styling in site.css
+```   	
+        html, body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            box-sizing: border-box;
+            background-color:rgb(245, 245, 245);
+            padding: 0.3rem;
+        }
+        
+        table {
+            border: 2px solid black;
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 01rem;
+        }
+        
+        th, td {
+            border: 1px solid #aaa;
+            padding: 0.5em;
+        }
+        
+        th {
+            background-color: #ccc;
+            border: 2px solid black;
+        }
+        
+        td {
+            width: auto;
+        }
+        
+        tr:nth-child(2n+1){
+            background-color: rgb(225, 225, 225);
+        }
+        
+        p {
+            margin: 0.25em;
+        }
+        
+        .project-column {
+            width: auto;
+            min-width: 5em;
+            white-space: nowrap;
+            vertical-align: top;
+        }
+        
+        .status-column {
+            width: 100%;
+        }
+```
+ 
