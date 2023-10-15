@@ -23,6 +23,7 @@ namespace NotionDatabaseStatusViewer
                 options.UseSqlServer(connectionString));
             builder.Services.AddDatabaseDeveloperPageExceptionFilter();
             builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
+                .AddRoles<IdentityRole>()
                 .AddEntityFrameworkStores<ApplicationDbContext>();
             builder.Services.AddRazorPages();
             builder.Services.AddServerSideBlazor();
@@ -42,9 +43,11 @@ namespace NotionDatabaseStatusViewer
                 }
             };
 
-            var client = new SecretClient(new Uri("<Key Vault Uri"), new DefaultAzureCredential(), options);
+            var client = new SecretClient(new Uri("<Key Vault Uri>"), new DefaultAzureCredential(), options);
 
             builder.Configuration.AddAzureKeyVault(client, new AzureKeyVaultConfigurationOptions());
+
+            builder.Services.AddHttpClient();
 
             var app = builder.Build();
 

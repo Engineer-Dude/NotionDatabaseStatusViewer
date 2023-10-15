@@ -1,6 +1,136 @@
 ﻿@page "/"
 
+@using NotionDatabaseStatusViewer.NotionTypes;
+@using System.Text
+@using System.Text.Json
+
+@inject HttpClient httpClient
+@inject IConfiguration config
+
 <PageTitle>Index</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>Status</h1>
 
+<AuthorizeView Roles="status-viewer">
+    <Authorized>
+        <table>
+            <tr>
+                <th class="project-column">Project</th>
+                <th class="status-column">Status</th>
+            </tr>
+            @foreach (TableRow row in results)
+            {
+                <tr>
+                    <td class="project-column">@row.Project</td>
+                    <td class="status-column">@row.Status</td>
+                </tr>
+            }
+        </table>
+    </Authorized>
+    <NotAuthorized>
+        <p>To see the status, you will need to be logged in and have authorization to view it.  If you need authorization, please request it by contacting 'contact email address' for authorization.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+
+@code{
+    private string databaseId = "";
+    private string bearerToken = "";
+    private string responseMessage = "";
+    private string notionContent = "";
+    private string reasonPhrase = "";
+    private List<TableRow> results = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        databaseId = config["DatabaseId"] ?? "";
+        bearerToken = config["BearerToken"] ?? "";
+
+        if (databaseId == string.Empty || bearerToken == string.Empty)
+        {
+            responseMessage = "Error getting configuration";
+            return;
+        }
+
+        await GetDatabaseContent(databaseId);
+        ProcessNotionResult(notionContent);
+    }
+
+    private async Task GetDatabaseContent(string databaseId)
+    {
+        string requestUri = $"https://api.notion.com/v1/databases/{databaseId}/query";
+
+        httpClient.DefaultRequestHeaders.Add(name: "Authorization", value: $"Bearer {bearerToken}");
+        httpClient.DefaultRequestHeaders.Add(name: "Notion-Version", value: "2022-06-28");
+
+        // Note on using relations in the Notion API:
+        // database_id is the id of the related database; open the related database as a page and get the id from the Url.
+        // contains is the page of the item of interest in the related database; open the item in the related database as a page and get the id from the Url
+        // The related database needs to also have the Notion integration.
+
+        string contentString = "";
+        HttpContent content = new StringContent(contentString, Encoding.UTF8, "application/json");
+
+        HttpResponseMessage response = new HttpResponseMessage();
+
+        try
+        {
+            response = await httpClient.PostAsync(requestUri, content);
+        }
+        catch (Exception ex)
+        {
+            responseMessage = $"Exception: {ex}";
+        }
+
+        if (response.IsSuccessStatusCode)
+        {
+            responseMessage = "Success";
+            notionContent = await response.Content.ReadAsStringAsync();
+        }
+        else
+        {
+            responseMessage = $"Error: {response.Content}";
+            reasonPhrase = $"Error: {response.ReasonPhrase}";
+        }
+    }
+
+    private void ProcessNotionResult(string result)
+    {
+        DataBaseQueryResponse response = new();
+        try
+        {
+            response = JsonSerializer.Deserialize<DataBaseQueryResponse>(result, JsonSerializerOptions.Default) ?? new();
+        }
+        catch (JsonException ex)
+        {
+            responseMessage = $"Error deserializing data. {ex.Message}";
+            return;
+        }
+
+        if (response is null)
+        {
+            responseMessage = "Error deserializing data";
+            return;
+        }
+
+        for (int row = 0; row < response.results.Count; row++)
+        {
+            string project = string.Empty;
+            string status = string.Empty;
+
+            if (response.results[row].properties.Project.title.Count() > 0)
+            {
+                project = response.results[row].properties.Project.title[0].text.content;
+            }
+
+            if (response.results[row].properties.Status.rich_text.Count() > 0)
+            {
+                status = response.results[row].properties.Status.rich_text[0].text.content;
+            }
+
+            results.Add(new TableRow { Project = project, Status = status });
+        }
+    }
+
+
+}
