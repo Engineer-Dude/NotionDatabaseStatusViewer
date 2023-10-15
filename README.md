@@ -94,4 +94,12 @@ Notion Database Status Viewer using a Blazor Server App
         3.	Enter ‘Add-Migration InitialCreate’.
         4.	Enter ‘Update-Database’.
             l.	Click ‘Publish’ (near the top of the Publish screen).
+6.	Create Git repository
+    1.	In ‘Git Changes’ panel, click on ‘Create Git Repository’
+7.	Setup SendGrid
+    1.	Sign up for SendGrid at https://www.sendgrid.com
+    2.	Go to Settings  API Keys
+    3.	Create API key
+    4.	Copy the value of the Key that is shown (only once)
+    5.	Put in Key Vault
 
