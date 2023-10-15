@@ -102,4 +102,94 @@ Notion Database Status Viewer using a Blazor Server App
     3.	Create API key
     4.	Copy the value of the Key that is shown (only once)
     5.	Put in Key Vault
+8.	Implement Authentication
+    1.	Create a ‘Services’ folder
+    2.	Add a class called AuthMessageSenderOptions.cs
+    ```
+        public class AuthMessageSenderOptions
+        {
+            public string? SendGridKey { get; set; }
+        }
+    ```
+    3.	Add NuGet packages for the next step where we add the EmailSender class
+        1.	SendGrid
+    4.	Add an implementation of IEmailSender called EmailSender.cs in the Services folder.  Correct the namespace.
+    ```
+    using Microsoft.AspNetCore.Identity.UI.Services;
+    using Microsoft.Extensions.Options;
+    using SendGrid;
+    using SendGrid.Helpers.Mail;
+    
+    namespace TeliriteStatusWebsite.Services
+    {
+        public class EmailSender : IEmailSender
+        {
+            private readonly ILogger _logger;
+    
+            public AuthMessageSenderOptions Options { get; }
+            public EmailSender(IOptions<AuthMessageSenderOptions> optionsAccessor, ILogger<EmailSender> logger)
+            {
+                Options = optionsAccessor.Value;
+                _logger = logger;
+            }
+            public async Task SendEmailAsync(string toEmail, string subject, string message)
+            {
+                if (string.IsNullOrEmpty(Options.SendGridKey))
+                {
+                    throw new Exception("Null SendGridKey");
+                }
+    
+                await Execute(Options.SendGridKey, subject, message, toEmail);
+            }
+    
+            public async Task Execute(string apiKey, string subject, string message, string toEmail)
+            {
+                SendGrid.Response? response = null;
+    
+                var client = new SendGridClient(apiKey);
+    
+                var msg = new SendGridMessage
+                {
+                    From = new EmailAddress("<sender email address>", "<optional name>"),
+                    Subject = subject,
+                    PlainTextContent = message,
+                    HtmlContent = message
+                };
+    
+                msg.AddTo(new EmailAddress(toEmail));
+    
+                // Disable click tracking
+                // See See https://sendgrid.com/docs/User_Guide/Settings/tracking.html
+                msg.SetClickTracking(enable: false, enableText: false);
+    
+                response = await client.SendEmailAsync(msg);
+    
+                _logger.LogInformation(response.IsSuccessStatusCode
+                    ? $"Email to {toEmail} queued successfully"
+                    : $"Email to {toEmail} failed");
+            }
+        }
+    }
+    ```
+   5.	Add dependency injection for EmailSender in Program.cs
+   ```
+   builder.Services.AddTransient<IEmailSender, EmailSender>();
+   builder.Services.Configure<AuthMessageSenderOptions>(builder.Configuration);
+   ``` 
+9.	Add the Azure Key Vault to Program.cs and update the Uri.
+```
+SecretClientOptions options = new()
+{
+    Retry =
+    {
+        Delay = TimeSpan.FromSeconds(2),
+        MaxDelay = TimeSpan.FromSeconds(16),
+        MaxRetries = 5,
+        Mode = Azure.Core.RetryMode.Exponential
+    }
+};
 
+var client = new SecretClient(new Uri("<Key Vault Uri>"), new DefaultAzureCredential(), options);
+
+builder.Configuration.AddAzureKeyVault(client, new AzureKeyVaultConfigurationOptions());
+```
