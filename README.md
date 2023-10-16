@@ -1,6 +1,5 @@
 # Notion Database Status Viewer
-Notion Database Status Viewer using a Blazor Server App.  This README.md file shows how to create this from a Blazor Server app template in Visual Studio 2022.
-Notion has many types including text, data, single-select, multi-select, etc.  This application uses the Title type for the Project column and the RichTextType for the Status column.
+This repository shows how to start with a Blazor Server template, and create a web app that can access a Notion database using the Notion API.  It uses SendGrid to authenticate a user.  The app is published to Azure.  Secrets are stored in an Azure Key Vault.
 ## Features
 * Authentication
 * Notion API access
