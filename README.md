@@ -105,7 +105,7 @@ Notion has many types including text, data, single-select, multi-select, etc.  T
     1.	In ‘Git Changes’ panel, click on ‘Create Git Repository’
 7.	Setup SendGrid
     1.	Sign up for SendGrid at https://www.sendgrid.com
-    2.	Go to Settings  API Keys
+    2.	Go to Settings -> API Keys
     3.	Create API key
     4.	Copy the value of the Key that is shown (only once)
     5.	Put in Key Vault
@@ -120,7 +120,8 @@ Notion has many types including text, data, single-select, multi-select, etc.  T
     ```
     3.	Add NuGet packages for the next step where we add the EmailSender class
         1.	SendGrid
-    4.	Add an implementation of IEmailSender called EmailSender.cs in the Services folder.  Correct the namespace.
+    4.	Add an implementation of IEmailSender called EmailSender.cs in the Services folder.  Correct the namespace
+        1. You will need to update the 'sender email address' and the 'optional name' below with the from email address to will be using.
     ```
     using Microsoft.AspNetCore.Identity.UI.Services;
     using Microsoft.Extensions.Options;
@@ -184,6 +185,7 @@ Notion has many types including text, data, single-select, multi-select, etc.  T
    builder.Services.Configure<AuthMessageSenderOptions>(builder.Configuration);
    ``` 
 9.	Add the Azure Key Vault to Program.cs and update the Uri.
+    1. You will need to change the line below for adding the actual Url for the Azure Key Vault.
 ```
 SecretClientOptions options = new()
 {
@@ -480,4 +482,9 @@ builder.Configuration.AddAzureKeyVault(client, new AzureKeyVaultConfigurationOpt
             width: 100%;
         }
 ```
- 
+14. Add the following to the Azure Key Vault
+    1. Bearer Token (this is the API key for your Notion integration)
+    2. DatabaseId (this is the id of the Notion database.  It's the part of the Url between the / and ?)
+    3. SendGrid Key (this is the SendGrid API key)
+
+    Note: the connection string will already be in the Azure Key Vault.  It was placed there when you published.
