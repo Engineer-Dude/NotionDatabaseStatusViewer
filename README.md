@@ -4,7 +4,7 @@ This repository shows how to start with a Blazor Server template, and create a w
 * Authentication
 * Notion API access
 ## Assumptions
-* You have a GitHub account
+* You have Visual Studio (2022)
 * You have an Azure account
 * You have a Notion account
 * You have a SendGrid account
