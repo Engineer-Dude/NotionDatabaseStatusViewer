@@ -7,6 +7,7 @@ This repository shows how to start with a Blazor Server template, and create a w
 * You have a GitHub account
 * You have an Azure account
 * You have a Notion account
+* You have a SendGrid account
 ## Resources created in Azure
 * App Service
 * App Service plan
